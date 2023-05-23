@@ -1,90 +1,194 @@
+import os
+import random
+import math
 import pygame
-from pygame.locals import *
+from os import listdir
+from os.path import isfile, join
 
+from pygame.sprite import _Group
 pygame.init()
 
-#set up the game window
-screen_width = 800
-screen_height = 600
+pygame.display.set_caption('Platformer')
 
-WIN = pygame.display.set_mode((screen_width, screen_height))
-WHITE = (255, 255, 255)
+WIDTH, HEIGHT = 1000, 800
+FPS = 60
+PLAYER_VEL = 10
 
-pygame.display.set_caption("IGRA!")
+window = pygame.display.set_mode((WIDTH, HEIGHT))
 
-clock = pygame.time.Clock()
+def flip(sprites):
+    return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
 
-def draw_window():
-    WIN.fill(WHITE)
+#Loading the spritesheets and spliting them into individual sprites - the most complicated part of the code
+def load_sprite_sheets(dir1, dir2, width, height, direction=False):
+    path = join("assets", dir1, dir2)
+    images = [f for f in listdir(path) if isfile(join(path, f))]
     
-    #draw game elements here
-    pygame.display.update()
-
-
-def draw_main_menu():
-    WIN.fill(WHITE):
-
-    #Draw menu elements
-
-    pygame.display.update()
-
-
-def handle_gameplay_input():
-    for event in pygame.event.get():
-        if event.type == KEYDOWN:
-            if event.key == K_LEFT:
-                # Handle left movement
-                player.move_left()
-            elif event.key == K_RIGHT:
-                # Handle right movement
-                player.move_right()
-            elif event.key == K_SPACE:
-                # Handle jumping
-                player.jump()
-
-
-def main():
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                running = False
-        #Handle user input for the main menu
-        handle_gameplay_input()
-        if in_main_menu:
-            for evenet in pygame.event.get():
-                if event.type == KEYDOWN:
-                    if event.key == K_RETURN:
-                        #Start the game or to the lecel selection screen
-                        in_main_menu = False
-                    elif event.key == K_ESCAPE:
-                        running = False
-
-        elif in_level_selection:
-            for evenet in pygame.event.get():
-                if event.type == KEYDOWN:
-                    if event.key == K_RETURN:
-                        in_level_selection = False
-                    elif event.key == K_ESCAPE:
-                        in_level_selection = False
-                        in_main_menu = True
-                    
-            
-                
-        #update game logic
-
-        if in_main_menu:
-            draw_main_menu()
-        elif in_level_selection:
-            draw_level_selection()
-        else:
-            draw_gameplay()
-                
+    all_sprites = {}
+    
+    for image in images:
+        sprite_sheet = pygame.image.load(join(path, image)).convert_alpha()
         
-        draw_window()
-        clock.tick(60)
+        sprites = []
+        for i in range(sprite_sheet.get_width() // width):
+            surface = pygame.Surface((width, height), pygame.SRCALPHA, 32)
+            rect = pygame.Rect(i * width, 0, width, height)
+            surface.blit(sprite_sheet, (0, 0), rect)
+            sprites.append(pygame.transform.scale2x(surface))
+            
+        if direction:
+            all_sprites[image.replace(".png", "") + "_right"] = sprites
+            all_sprites[image.replace(".png", "") + "_left"] = flip(sprites)
+        else:
+            all_sprites[image.replace(".png", "")] = sprites
+        
+    return all_sprites
+
+
+def get_block(size):
+    path = join("assets", "Terrain", "Terrain.png")
+    image = pygame.image.load(path).convert_alpha()
+    surface = pygame.surface((size, size))
+    rect = pygame.Rect(96, 0, size)
+
+class Player(pygame.sprite.Sprite):
+    COLOR = (255, 0, 0)
+    GRAVITY = 1
+    SPRITES = load_sprite_sheets("MainCharacters", "NinjaFrog", 32, 32, True)
+    ANIMATION_DELAY = 3
+
+    def __init__(self, x, y, width, height):
+        super().__init__()
+        self.rect = pygame.Rect(x, y, width, height)
+        self.x_vel = 0
+        self.y_vel = 0
+        self.mask = None
+        self.direction = "left"
+        self.animation_count = 0
+        self.fall_count = 0
+        
+    def move(self, dx, dy):
+        self.rect.x += dx
+        self.rect.y += dy
+    
+    def move_left(self, vel):
+        self.x_vel = -vel
+        if self.direction != "left":
+            self.direction = "left"
+            self.animation_count = 0
+
+    def move_right(self, vel):
+        self.x_vel = vel
+        if self.direction != "right":
+            self.direction = "right"
+            self.animation_count = 0
+
+
+    def loop(self, fps):
+        #self.y_vel += min(1, (self.fall_count / fps) * self.GRAVITY)
+        self.move(self.x_vel, self.y_vel)
+
+        self.fall_count += 1
+        self.update_sprite()
+    
+    def update_sprite(self):
+        sprite_sheet = "idle"
+        if self.x_vel != 0:
+            sprite_sheet ="run"
+        
+        sprite_sheet_name = sprite_sheet + "_" + self.direction
+        sprites = self.SPRITES[sprite_sheet_name]
+        sprite_index = (self.animation_count // self.ANIMATION_DELAY) % len(sprites)
+        self.sprite = sprites[sprite_index]
+        self.animation_count += 1
+        selfx.update()
+    
+    #Allows pixel-perfect collision detectio. Updates the rect to be equal to the sprite.
+    def update():
+        self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
+        self.mask = pygame.mask.from_surface(self.sprite)
+        
+    
+    def draw(self, win):
+        win.blit(self.sprite, (self.rect.x, self.rect.y))
+
+
+class Object(pygame.sprite.Sprite):
+    def __init__(self, x, y, width, height, name=None):
+        super().__init__()
+        self.rect = pygame.Rect(x, y, width, height)
+        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
+        self.width = width
+        self.height = height
+        self.name = name
+    
+    
+    def draw(self, win):
+        win.blit(self.image, (self.rect.x, self.rect.y))
+
+
+class Block(Object):
+    def __init__(self, x, y, size):
+        super().__init__(x, y, size, size)
+        block = load.block(size)
+        self.image.blit(block, (0, 0))
+        self.mask = pygame.mask.from_surface(self.image)
+
+
+def get_background(name):
+    image = pygame.image.load(join("assets", "Background", name))
+    _, _, width, height = image.get_rect()
+    tiles = []
+
+    for i in range(WIDTH // width + 1):
+        for j in range(HEIGHT // height + 1):
+            pos = (i * width, j * height)
+            tiles.append(pos)
+
+    return tiles, image
+
+
+def draw(window, background, bg_image, player):
+    for tile in background:
+        window.blit(bg_image, tile)
+    
+    player.draw(window)
+    
+    pygame.display.update()
+
+
+def handle_move(player):
+    keys = pygame.key.get_pressed()
+    
+    player.x_vel = 0 #this line ensures that the player is moving only while the key is pressed
+    if keys[pygame.K_LEFT]:
+        player.move_left(PLAYER_VEL)
+    if keys[pygame.K_RIGHT]:
+        player.move_right(PLAYER_VEL)
+
+def main(window):
+    clock = pygame.time.Clock()
+    background, bg_image = get_background("Green.png")
+    
+    player = Player(100, 100, 50, 50)
+    
+    run = True
+    while run:
+        clock.tick(FPS)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+                break
+
+        player.loop(FPS)
+        handle_move(player)
+        draw(window, background, bg_image, player)
+        
     pygame.quit()
+    quit()
 
 
-if __name__ == "__main__":
-    main()
+if __name__  == "__main__":
+    main(window)
+    
